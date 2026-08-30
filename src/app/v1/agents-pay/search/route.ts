@@ -1,44 +1,39 @@
-import { z } from "zod";
+import { MerchantSearchRequestSchema } from "@agentic-mandates/contracts";
 
-import { apiError, readJson } from "@/lib/api";
-import { searchProducts } from "@/lib/catalog";
-
-const searchSchema = z.object({
-  query: z.string().max(200).default(""),
-  category: z.enum([
-    "automotive.tires",
-    "automotive.brakes",
-    "automotive.accessories",
-    "automotive.maintenance",
-    "automotive.electrical",
-  ]).optional(),
-  limit: z.number().int().min(1).max(50).default(10),
-});
+import { verifyAgentRequest } from "@/lib/agent-request";
+import { apiError, readRawBody } from "@/lib/api";
+import { CATALOG_VERSION, MERCHANT_ID, MERCHANT_NAME, searchProducts } from "@/lib/catalog";
 
 export async function POST(request: Request) {
   const requestId = `req_${crypto.randomUUID()}`;
   try {
-    const parsed = searchSchema.safeParse(await readJson(request));
-    if (!parsed.success) return apiError("INVALID_SEARCH", "Invalid search request.", 400, requestId);
-    const results = searchProducts(parsed.data.query, parsed.data.category, parsed.data.limit).map((product) => ({
-      id: product.id,
-      sku: product.sku,
-      merchantId: product.merchantId,
+    const rawBody = await readRawBody(request);
+    const parsed = MerchantSearchRequestSchema.safeParse(JSON.parse(rawBody));
+    if (!parsed.success) return apiError("INVALID_REQUEST", "The catalog search request is invalid.", 400, requestId);
+
+    const verification = await verifyAgentRequest(request, rawBody);
+    if (!verification.ok) return apiError(verification.code, verification.message, verification.status, requestId);
+
+    const offers = searchProducts(parsed.data.query, undefined, parsed.data.limit ?? 10).map((product) => ({
+      merchantSku: product.sku,
+      merchantCategoryId: product.category,
       name: product.name,
       description: product.description,
-      category: product.category,
-      priceCents: product.priceCents,
+      unitAmountMinor: product.priceCents,
       currency: product.currency,
       availableQuantity: product.availableQuantity,
-      brand: product.brand,
-      compatibility: product.compatibility,
-      inStock: product.availableQuantity > 0,
+      attributes: product.attributes,
     }));
-    return Response.json({ requestId, results });
+    return Response.json({
+      merchantId: MERCHANT_ID,
+      merchantName: MERCHANT_NAME,
+      merchantCatalogVersion: CATALOG_VERSION,
+      offers,
+    }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof Error && error.message === "BODY_TOO_LARGE") {
-      return apiError("BODY_TOO_LARGE", "The request body exceeds the limit.", 413, requestId);
+      return apiError("REQUEST_TOO_LARGE", "The request body exceeds the limit.", 413, requestId);
     }
-    return apiError("INVALID_JSON", "The request body must contain valid JSON.", 400, requestId);
+    return apiError("MALFORMED_REQUEST", "The request body must contain valid JSON.", 400, requestId);
   }
 }

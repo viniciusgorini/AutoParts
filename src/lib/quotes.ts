@@ -1,97 +1,88 @@
+import {
+  MerchantQuotePayloadSchema,
+  MerchantQuoteRequestSchema,
+  type MerchantQuote,
+  type MerchantQuotePayload,
+  type MerchantQuoteRequest,
+} from "@agentic-mandates/contracts";
+import { sha256Base64Url } from "@agentic-mandates/sdk";
+import { CompactSign, exportJWK, generateKeyPair, importJWK, type JWK } from "jose";
+
 import { calculateCart } from "@/lib/cart";
 import { CATALOG_VERSION, getProduct, MERCHANT_ID } from "@/lib/catalog";
-import { canonicalize, sha256Base64Url, type JsonValue } from "@/lib/jcs";
+import { canonicalize } from "@/lib/jcs";
 
-export type QuoteRequest = {
-  items: Array<{ merchantSku: string; quantity: number }>;
-  metadata?: Record<string, string>;
+export type QuoteRequest = MerchantQuoteRequest;
+export type SignedQuote = MerchantQuote;
+
+type StoredQuote = {
+  quote: MerchantQuote;
+  idempotencyKey: string;
+  idempotencyHash: string;
 };
 
-export type SignedQuote = {
-  quote: {
-    id: string;
-    merchantId: string;
-    merchantOrderRef: string;
-    catalogVersion: string;
-    items: Array<{ merchantSku: string; name: string; quantity: number; unitPriceCents: number; lineTotalCents: number }>;
-    subtotalCents: number;
-    shippingCents: number;
-    taxCents: number;
-    totalCents: number;
-    currency: "USD";
-    metadata: Record<string, string>;
-    requestHash: string;
-    cartHash: string;
-    issuedAt: string;
-    expiresAt: string;
-  };
+type QuoteSigningMaterial = {
+  privateJwk: JWK;
   keyId: string;
-  publicJwk: JsonWebKey;
-  jws: string;
 };
-
-type StoredQuote = SignedQuote & { idempotencyKey: string; idempotencyHash: string };
 
 const globalQuoteState = globalThis as typeof globalThis & {
   autopartsQuotes?: Map<string, StoredQuote>;
   autopartsQuoteIdempotency?: Map<string, string>;
-  autopartsDevelopmentKey?: Promise<CryptoKeyPair>;
+  autopartsDevelopmentSigningMaterial?: Promise<QuoteSigningMaterial>;
 };
 
 const quotes = globalQuoteState.autopartsQuotes ??= new Map();
 const idempotency = globalQuoteState.autopartsQuoteIdempotency ??= new Map();
+const textEncoder = new TextEncoder();
 
-async function signingKey() {
+async function signingMaterial(): Promise<QuoteSigningMaterial> {
   const configured = process.env.AGENTPAY_MERCHANT_PRIVATE_JWK;
   if (configured) {
-    const privateJwk = JSON.parse(configured) as JsonWebKey;
-    const privateKey = await crypto.subtle.importKey(
-      "jwk",
-      privateJwk,
-      { name: "ECDSA", namedCurve: "P-256" },
-      false,
-      ["sign"],
-    );
-    const publicJwk = { ...privateJwk };
-    delete publicJwk.d;
+    const privateJwk = JSON.parse(configured) as JWK;
     return {
-      privateKey,
-      publicJwk,
-      keyId: process.env.AGENTPAY_MERCHANT_KEY_ID || (privateJwk as JsonWebKey & { kid?: string }).kid || "autoparts-es256",
+      privateJwk,
+      keyId: process.env.AGENTPAY_MERCHANT_KEY_ID ?? privateJwk.kid ?? "autoparts-quote-key",
     };
   }
-  if (process.env.NODE_ENV === "production") throw new Error("QUOTE_SIGNING_KEY_REQUIRED");
-  globalQuoteState.autopartsDevelopmentKey ??= crypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" },
-    true,
-    ["sign", "verify"],
-  );
-  const pair = await globalQuoteState.autopartsDevelopmentKey;
-  return {
-    privateKey: pair.privateKey,
-    publicJwk: await crypto.subtle.exportKey("jwk", pair.publicKey),
-    keyId: "autoparts-development-es256",
-  };
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("QUOTE_SIGNING_KEY_REQUIRED");
+  }
+
+  globalQuoteState.autopartsDevelopmentSigningMaterial ??= (async () => {
+    const keyPair = await generateKeyPair("ES256", { extractable: true });
+    return {
+      privateJwk: await exportJWK(keyPair.privateKey),
+      keyId: "autoparts-development-quote-key",
+    };
+  })();
+  return globalQuoteState.autopartsDevelopmentSigningMaterial;
 }
 
-function toBase64Url(value: string) {
-  return Buffer.from(value).toString("base64url");
+async function signQuote(payload: MerchantQuotePayload): Promise<MerchantQuote> {
+  const material = await signingMaterial();
+  const validated = MerchantQuotePayloadSchema.parse(payload);
+  const privateKey = await importJWK(material.privateJwk, "ES256");
+  const signature = await new CompactSign(textEncoder.encode(canonicalize(validated)))
+    .setProtectedHeader({
+      alg: "ES256",
+      kid: validated.keyId,
+      typ: "application/agents-pay-quote+jws",
+    })
+    .sign(privateKey);
+
+  return { ...validated, signature };
 }
 
-async function signQuote(payload: JsonValue) {
-  const { privateKey, publicJwk, keyId } = await signingKey();
-  const protectedHeader = toBase64Url(JSON.stringify({ alg: "ES256", kid: keyId, typ: "agentpay-quote+jws" }));
-  const encodedPayload = toBase64Url(canonicalize(payload));
-  const signature = await crypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    privateKey,
-    new TextEncoder().encode(`${protectedHeader}.${encodedPayload}`),
-  );
-  return { keyId, publicJwk, jws: `${protectedHeader}.${encodedPayload}.${Buffer.from(signature).toString("base64url")}` };
-}
-
-export async function createQuote(input: QuoteRequest, canonicalRequest: string, idempotencyKey: string, now = new Date()) {
-  const idempotencyHash = await sha256Base64Url(canonicalRequest);
+export async function createQuote(
+  request: QuoteRequest,
+  canonicalRequest: string,
+  idempotencyKey: string,
+  now = new Date(),
+) {
+  const parsedRequest = MerchantQuoteRequestSchema.parse(request);
+  const idempotencyHash = await hashText(canonicalRequest);
   const existingQuoteId = idempotency.get(idempotencyKey);
   if (existingQuoteId) {
     const existing = quotes.get(existingQuoteId);
@@ -99,40 +90,57 @@ export async function createQuote(input: QuoteRequest, canonicalRequest: string,
     if (existing) return existing;
   }
 
-  const cartLines = input.items.map((item) => {
-    const product = getProduct(item.merchantSku);
-    if (!product) throw new Error(`PRODUCT_NOT_FOUND:${item.merchantSku}`);
-    if (item.quantity > product.availableQuantity) throw new Error(`INSUFFICIENT_STOCK:${item.merchantSku}`);
-    return { productId: product.id, quantity: item.quantity };
+  const requestedQuantities = new Map<string, number>();
+  for (const item of parsedRequest.items) {
+    requestedQuantities.set(item.merchantSku, (requestedQuantities.get(item.merchantSku) ?? 0) + item.quantity);
+  }
+
+  const cartLines = [...requestedQuantities.entries()].map(([merchantSku, quantity]) => {
+    const product = getProduct(merchantSku);
+    if (!product) throw new Error(`SKU_NOT_FOUND:${merchantSku}`);
+    if (quantity > product.availableQuantity) throw new Error(`INSUFFICIENT_INVENTORY:${merchantSku}`);
+    return { productId: product.id, quantity };
   });
   const totals = calculateCart(cartLines);
-  const items = totals.items.map(({ product, quantity, lineTotalCents }) => ({
+  const lineItems = totals.items.map(({ product, quantity }) => ({
     merchantSku: product.sku,
+    merchantCategoryId: product.category,
     name: product.name,
     quantity,
-    unitPriceCents: product.priceCents,
-    lineTotalCents,
+    unitAmountMinor: product.priceCents,
+    attributes: product.attributes,
   }));
-  const cartHash = await sha256Base64Url(canonicalize(items as unknown as JsonValue));
-  const quote = {
-    id: `qte_${crypto.randomUUID()}`,
+  const material = await signingMaterial();
+  const issuedAt = now.toISOString();
+  const quoteWithoutCartHash = {
+    id: `quote_${crypto.randomUUID()}`,
     merchantId: MERCHANT_ID,
-    merchantOrderRef: `ord_${crypto.randomUUID()}`,
-    catalogVersion: CATALOG_VERSION,
-    items,
-    subtotalCents: totals.subtotalCents,
-    shippingCents: totals.shippingCents,
-    taxCents: totals.taxCents,
-    totalCents: totals.totalCents,
+    merchantOrderRef: `order_${crypto.randomUUID()}`,
+    issuedAt,
+    merchantCatalogVersion: CATALOG_VERSION,
+    lineItems,
+    subtotalMinor: totals.subtotalCents,
+    shippingMinor: totals.shippingCents,
+    taxMinor: totals.taxCents,
+    totalMinor: totals.totalCents,
     currency: "USD" as const,
-    metadata: input.metadata ?? {},
-    requestHash: idempotencyHash,
-    cartHash,
-    issuedAt: now.toISOString(),
     expiresAt: new Date(now.valueOf() + 15 * 60_000).toISOString(),
+    keyId: material.keyId,
   };
-  const signature = await signQuote(quote as unknown as JsonValue);
-  const stored = { quote, ...signature, idempotencyKey, idempotencyHash };
+  const quote = await signQuote({
+    ...quoteWithoutCartHash,
+    merchantCartHash: await hashText(canonicalize({
+      merchantId: quoteWithoutCartHash.merchantId,
+      merchantCatalogVersion: quoteWithoutCartHash.merchantCatalogVersion,
+      lineItems: quoteWithoutCartHash.lineItems,
+      subtotalMinor: quoteWithoutCartHash.subtotalMinor,
+      shippingMinor: quoteWithoutCartHash.shippingMinor,
+      taxMinor: quoteWithoutCartHash.taxMinor,
+      totalMinor: quoteWithoutCartHash.totalMinor,
+      currency: quoteWithoutCartHash.currency,
+    })),
+  });
+  const stored = { quote, idempotencyKey, idempotencyHash };
   quotes.set(quote.id, stored);
   idempotency.set(idempotencyKey, quote.id);
   return stored;
@@ -143,5 +151,16 @@ export function getQuote(quoteId: string) {
 }
 
 export function publicQuote(stored: StoredQuote): SignedQuote {
-  return { quote: stored.quote, keyId: stored.keyId, publicJwk: stored.publicJwk, jws: stored.jws };
+  return stored.quote;
+}
+
+/** Public material for local contract tests; a deployment registers it out of band. */
+export async function quoteSigningPublicJwkForTests(): Promise<JWK> {
+  const publicJwk = { ...(await signingMaterial()).privateJwk };
+  delete publicJwk.d;
+  return publicJwk;
+}
+
+async function hashText(value: string): Promise<string> {
+  return sha256Base64Url(textEncoder.encode(value));
 }

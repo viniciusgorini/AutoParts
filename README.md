@@ -1,52 +1,45 @@
 # AutoParts
 
-AutoParts is an independent mock B2B automotive-parts store built for the NextWave Hackathon 2026 pitch. It works as a normal storefront for people and also participates in the AgentPay merchant network for autonomous fleet procurement.
+AutoParts is an independent mock B2B automotive-parts storefront for the NextWave Hackathon 2026. It supports a normal human checkout experience and implements the Agentic Mandates V2 merchant boundary for autonomous fleet procurement.
 
-The demo scenario is simple: a fleet vehicle breaks down, an AI agent searches available parts, compares a USD quote, and purchases the selected items within an approved mandate.
+The merchant is not a payment gateway. It never receives a card number, Vault reference, passkey data, mandate policy, canonical category, or trust tier.
+
+## AgentPay V2 flow
+
+1. An agent discovers this store on its own domain and uses the V2 client SDK to search and obtain an immutable ES256-signed quote.
+2. The Control Plane verifies the registered quote key, maps AutoParts' local `fleet.*` category to its canonical taxonomy, evaluates the mandate, and mints a short-lived opaque purchase capability.
+3. The agent presents that capability to the quoted order endpoint.
+4. AutoParts calls the Mandate API with a merchant service proof, verifies the Mandate-signed receipt, and dispatches only when settlement is `captured`.
+
+No payment token is sent to AutoParts. A revoked mandate, an untrusted response, an expired quote, or any unavailable verification dependency fails closed.
 
 ## What works
 
-- Responsive English storefront with search, category filters, cart, quantities, and checkout
-- Eight fleet products priced in US dollars using integer cents
-- Bank transfer, card, and AgentPay mock payment choices
-- Public catalog search for procurement agents
-- AgentPay decentralized merchant discovery
-- RFC 8785 JCS request verification for agent-only operations
-- Immutable 15-minute quotes signed as compact ES256 JWS values
-- Idempotent quote creation and order verification
-- Payment-token verification with the Mandate Authority before fulfillment
-- Legacy single-product checkout protected by the official AgentPay merchant SDK
+- Responsive English storefront with catalog, cart, quantities, and mock human payment choices
+- Eight fleet products priced in USD integer minor units
+- Decentralized `/.well-known/agentpay.json` discovery for `agentic-mandates/2`
+- ES256 request-proof verification bound to method, full URL, raw body, expiry, registered key, and an atomic replay claim
+- Immutable 15-minute quotes signed over RFC 8785 JCS canonical payloads
+- Local merchant categories only (`fleet.*`); the Control Plane owns canonical taxonomy and trust
+- V2 SDK merchant-to-Mandate verification using an opaque `purchaseCapability`
+- Pinned Mandate receipt verification and fulfillment only after `settlementStatus: "captured"`
+- Idempotent quote and order handling in the single-instance mock
 
-No real payment is processed. The project never accepts card numbers, CVC values, or private agent credentials.
-
-## Demo catalog
-
-| SKU | Product | Category | Unit price |
-| --- | --- | --- | ---: |
-| `prd_tire_std` | Standard Fleet Tire Set | Tires | $1,548.00 |
-| `prd_tire_prm` | Premium Fleet Tire Set | Tires | $1,720.00 |
-| `prd_acc_jack` | Hydraulic Trolley Jack (2-Ton) | Accessories | $389.00 |
-| `prd_acc_mats` | All-Weather Floor Mats | Accessories | $129.00 |
-| `prd_brake_hd` | Heavy-Duty Ceramic Brake Pads | Brakes | $145.00 |
-| `prd_battery_60ah` | Fleet Battery 60 Ah | Electrical | $189.00 |
-| `prd_oil_synth` | Synthetic Fleet Motor Oil (5W-30) | Maintenance | $48.00 |
-| `prd_filter_oil` | Premium Oil Filter | Maintenance | $18.00 |
-
-Prices, tax, shipping, and totals are always calculated in integer cents. Orders over $2,000 receive free shipping; other orders use a $29.90 mock shipping charge and an 8% estimated tax.
+No real payment is processed. Human card and bank-transfer options are visual mock flows only; they are not exposed through the AgentPay API.
 
 ## Run locally
 
-Requirements: Node.js 20 or newer and npm.
+Requirements: Node.js 22 or newer and npm.
 
 ```bash
 cp .env.example .env.local
-npm ci
+npm ci --allow-remote=all
 npm run dev
 ```
 
 Open [http://localhost:3220](http://localhost:3220).
 
-The development server generates an ephemeral ES256 quote key when no private JWK is configured. Production fails closed until `AGENTPAY_MERCHANT_PRIVATE_JWK`, `AGENTPAY_MERCHANT_KEY_ID`, and an explicit registry URL are configured.
+Development creates an ephemeral ES256 quote key only. Merchant verification always requires the server-only merchant service key and the pinned Mandate receipt public JWK; production additionally requires an explicit Mandate API URL.
 
 ## Verification
 
@@ -57,76 +50,48 @@ npm test
 npm run build
 ```
 
-Tests live in `tests/` and cover catalog search, USD cart calculations, SDK refusal of unsigned checkout, public catalog search, JCS behavior, ES256 signature verification, and quote idempotency.
+The tests cover V2 discovery, request-proof acceptance, local category exposure, canonical quote signing, idempotency, opaque capability handoff, and the distinction between pending and captured settlement.
 
 ## AgentPay endpoints
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| `GET` | `/.well-known/agentpay.json` | Merchant discovery and protocol capabilities |
-| `POST` | `/v1/agents-pay/search` | Public fleet catalog search |
-| `POST` | `/v1/agents-pay/quotes` | Authenticated, idempotent ES256 quote creation |
-| `GET` | `/v1/agents-pay/quotes/{quoteId}` | Authenticated quote retrieval |
-| `POST` | `/v1/agents-pay/orders/{merchantOrderRef}/verification` | Authenticated payment-token verification and fulfillment |
-| `POST` | `/api/agentpay/checkout` | Official SDK single-product policy checkout |
+| `GET` | `/.well-known/agentpay.json` | Public V2 merchant discovery |
+| `POST` | `/v1/agents-pay/search` | Proof-protected catalog search with local categories |
+| `POST` | `/v1/agents-pay/quotes` | Proof-protected, idempotent ES256 quote creation |
+| `GET` | `/v1/agents-pay/quotes/{quoteId}` | Proof-protected quote retrieval |
+| `POST` | `/v1/agents-pay/orders/{merchantOrderRef}/verification` | Capability claim and settlement-confirmed order verification |
 
-### Signed agent requests
+Every AgentPay API request uses `X-Agent-Request-Proof`; mutating routes also require `Idempotency-Key`. The proof is an ES256 JWS created by `@agentic-mandates/sdk`, with audience `merchant-api:mrc_autoparts`.
 
-Quote creation, quote retrieval, and order verification require:
+### Control Plane dependencies
 
-- `X-Agent-Id`
-- `X-Timestamp`
-- `X-Nonce`
-- `X-Signature`
-- `Idempotency-Key` for POST operations
+The merchant fails closed until the Control Plane provides these authenticated server endpoints:
 
-The request body is canonicalized with RFC 8785 JCS. AutoParts hashes the canonical bytes with SHA-256 and verifies the agent signature over:
+- `GET /v1/registry/request-proof-keys/{keyId}` — returns the active public ES256 JWK and actor bound to a key ID.
+- `POST /v1/registry/request-proofs/claims` — atomically claims an agent proof JTI through its expiry.
+- `POST /v1/merchant/verifications` — accepts the merchant proof and opaque capability, then returns a Mandate-signed verification receipt.
 
-```text
-METHOD|PATH|BASE64URL_SHA256_BODY|TIMESTAMP|NONCE
-```
-
-The agent public key and single-use nonce are checked through the configured AgentPay registry before a quote is generated. For authenticated GET requests, the canonical body is `{}`.
-
-### Quote response
-
-Successful quote creation returns the quote payload, key ID, public JWK, and compact JWS. The payload binds the merchant, catalog version, item quantities, unit prices, USD totals, request hash, cart hash, issue time, and expiry time.
-
-Production should publish the public quote key through a trusted merchant-key directory. The public JWK is included in this mock response so judges can verify the ES256 signature directly during the demo.
-
-### Order safety
-
-AutoParts never trusts a submitted payment token by itself. It sends the token only to the fixed `/api/registry/payment-tokens/verify` path under the configured Mandate Authority origin. Fulfillment occurs only when the authority response matches the merchant, mandate, quote, total amount, and USD currency. The raw token is never returned or stored; only its SHA-256 hash is retained for idempotency.
-
-The current AgentPay deployment may not expose the payment-token endpoint yet. In that case AutoParts fails closed with `MANDATE_AUTHORITY_UNAVAILABLE` and does not fulfill the order.
+The final endpoint is the only authorization/settlement integration. It independently refetches the quote, validates its registered signing key, applies taxonomy and mandate policy, and invokes the isolated hosted test-payment vault. AutoParts verifies the returned receipt with `AGENTPAY_MANDATE_RECEIPT_PUBLIC_JWK` before exposing an order as fulfilled.
 
 ## SDK boundary
 
-The dependency `@agentpay/merchant-sdk@0.1.0` is installed from the audited tarball at `vendor/agentpay-merchant-sdk-0.1.0.tgz`. It was built from AgentPay commit:
-
-```text
-4d631acf0f2347542081d12e63f08ec1221c5e6a
-```
-
-The package is used for the legacy discovery base and signed single-product checkout. The public SDK does not currently export batch quote signing or payment-token settlement helpers, so AutoParts implements the repository's documented protocol extension locally without importing AgentPay source files, database code, workspace dependencies, or symlinks.
+`vendor/agentic-mandates-sdk-0.0.0-autoparts.107e534.tgz` and `vendor/agentic-mandates-contracts-0.0.0-autoparts.107e534.tgz` are pinned build artifacts of the current `pedroschott/hackatonyuno` V2 SDK and contract packages at commit `107e534`. They are committed deliberately: the package is private, there is no npm publication step, and the storefront must remain reproducible without a cross-repository symlink.
 
 ## Environment variables
 
 See `.env.example` for placeholders.
 
-- `AGENTPAY_REGISTRY_URL`: Mandate Authority and registry origin; required in production
+- `AGENTPAY_MANDATE_API_URL`: Mandate API origin; required in production
+- `AGENTPAY_REQUEST_PROOF_REGISTRY_URL`: registered-key and replay-claim API origin
 - `AGENTPAY_MERCHANT_ID`: defaults to `mrc_autoparts`
 - `AGENTPAY_MERCHANT_NAME`: defaults to `AutoParts B2B Fleet Supply`
-- `AGENTPAY_MERCHANT_PRIVATE_JWK`: private P-256 JWK used only on the server
-- `AGENTPAY_MERCHANT_KEY_ID`: public identifier for the quote signing key
-- `DATABASE_URL`: reserved for durable production stores
+- `AGENTPAY_MERCHANT_PRIVATE_JWK` / `AGENTPAY_MERCHANT_KEY_ID`: server-only quote signing material
+- `AGENTPAY_MERCHANT_SERVICE_PRIVATE_JWK` / `AGENTPAY_MERCHANT_SERVICE_KEY_ID`: server-only merchant proof material
+- `AGENTPAY_MANDATE_RECEIPT_PUBLIC_JWK`: pinned public JWK for Mandate verification receipts
 
-Never use a `NEXT_PUBLIC_` prefix for private key material.
+Never use a `NEXT_PUBLIC_` prefix for a private key.
 
-## Production boundary
+## Deployment boundary
 
-This hackathon version uses process-local maps for quotes, idempotency keys, replay state, and finalized orders. That is appropriate for a single-instance pitch demo, but a multi-instance deployment must replace them with durable transactional storage before production use.
-
-## Repository boundary
-
-AutoParts is intentionally standalone. The AgentPay repository is an external public service and SDK provider; it is not modified by this project.
+This hackathon mock keeps quotes, idempotency keys, and orders in process-local maps. It is appropriate only for a single-instance demonstration. A Vercel production deployment needs durable, transactional quote/order/idempotency and replay-claim adapters before it can safely run across instances.

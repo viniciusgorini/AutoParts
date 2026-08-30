@@ -3,11 +3,11 @@ export const MERCHANT_NAME = "AutoParts B2B Fleet Supply";
 export const CATALOG_VERSION = "autoparts-2026-08-30";
 
 export type ProductCategory =
-  | "automotive.tires"
-  | "automotive.brakes"
-  | "automotive.accessories"
-  | "automotive.maintenance"
-  | "automotive.electrical";
+  | "fleet.tires"
+  | "fleet.brakes"
+  | "fleet.shop-accessories"
+  | "fleet.maintenance"
+  | "fleet.electrical";
 export type ProductVisual = "tire" | "jack" | "mat" | "brake" | "battery" | "oil" | "filter";
 
 export type Product = {
@@ -28,11 +28,11 @@ export type Product = {
 };
 
 export const categoryLabels: Record<ProductCategory, string> = {
-  "automotive.tires": "Tires",
-  "automotive.brakes": "Brakes",
-  "automotive.accessories": "Accessories",
-  "automotive.maintenance": "Maintenance",
-  "automotive.electrical": "Electrical",
+  "fleet.tires": "Tires",
+  "fleet.brakes": "Brakes",
+  "fleet.shop-accessories": "Accessories",
+  "fleet.maintenance": "Maintenance",
+  "fleet.electrical": "Electrical",
 };
 
 export const products: Product[] = [
@@ -42,7 +42,7 @@ export const products: Product[] = [
     merchantId: MERCHANT_ID,
     name: "Standard Fleet Tire Set",
     description: "Four 205/55 R16 all-season tires with fleet-grade durability and a 60,000-mile warranty.",
-    category: "automotive.tires",
+    category: "fleet.tires",
     priceCents: 154_800,
     currency: "USD",
     availableQuantity: 12,
@@ -58,7 +58,7 @@ export const products: Product[] = [
     merchantId: MERCHANT_ID,
     name: "Premium Fleet Tire Set",
     description: "Four high-performance 205/55 R16 tires with low noise and an A-rated wet grip.",
-    category: "automotive.tires",
+    category: "fleet.tires",
     priceCents: 172_000,
     currency: "USD",
     availableQuantity: 8,
@@ -74,7 +74,7 @@ export const products: Product[] = [
     merchantId: MERCHANT_ID,
     name: "Hydraulic Trolley Jack (2-Ton)",
     description: "Dual-pump rapid-lift shop jack with a low profile and reinforced caster wheels.",
-    category: "automotive.accessories",
+    category: "fleet.shop-accessories",
     priceCents: 38_900,
     currency: "USD",
     availableQuantity: 6,
@@ -90,7 +90,7 @@ export const products: Product[] = [
     merchantId: MERCHANT_ID,
     name: "All-Weather Floor Mats",
     description: "Four washable, trimmable heavy-duty rubber mats with anti-slip backing.",
-    category: "automotive.accessories",
+    category: "fleet.shop-accessories",
     priceCents: 12_900,
     currency: "USD",
     availableQuantity: 20,
@@ -106,7 +106,7 @@ export const products: Product[] = [
     merchantId: MERCHANT_ID,
     name: "Heavy-Duty Ceramic Brake Pads",
     description: "Fleet ceramic pads with dual shims, low dust, and integrated wear sensors.",
-    category: "automotive.brakes",
+    category: "fleet.brakes",
     priceCents: 14_500,
     currency: "USD",
     availableQuantity: 15,
@@ -122,7 +122,7 @@ export const products: Product[] = [
     merchantId: MERCHANT_ID,
     name: "Fleet Battery 60 Ah",
     description: "Maintenance-free 12 V battery with high cold-cranking power and a 24-month warranty.",
-    category: "automotive.electrical",
+    category: "fleet.electrical",
     priceCents: 18_900,
     currency: "USD",
     availableQuantity: 9,
@@ -138,7 +138,7 @@ export const products: Product[] = [
     merchantId: MERCHANT_ID,
     name: "Synthetic Fleet Motor Oil (5W-30)",
     description: "Five-quart synthetic formulation designed for severe use and extended drain intervals.",
-    category: "automotive.maintenance",
+    category: "fleet.maintenance",
     priceCents: 4_800,
     currency: "USD",
     availableQuantity: 18,
@@ -154,7 +154,7 @@ export const products: Product[] = [
     merchantId: MERCHANT_ID,
     name: "Premium Oil Filter",
     description: "High-efficiency filter media that traps contaminants and protects fleet engines.",
-    category: "automotive.maintenance",
+    category: "fleet.maintenance",
     priceCents: 1_800,
     currency: "USD",
     availableQuantity: 24,

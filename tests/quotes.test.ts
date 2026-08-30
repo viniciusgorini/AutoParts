@@ -1,37 +1,50 @@
+import { compactVerify, importJWK } from "jose";
 import { describe, expect, it } from "vitest";
 
 import { canonicalize } from "@/lib/jcs";
-import { createQuote, publicQuote } from "@/lib/quotes";
+import {
+  createQuote,
+  publicQuote,
+  quoteSigningPublicJwkForTests,
+} from "@/lib/quotes";
 
-describe("signed AgentPay quotes", () => {
-  it("creates an immutable USD quote with a verifiable ES256 compact JWS", async () => {
+describe("signed AgentPay V2 quotes", () => {
+  it("creates an immutable quote with a local category and a verifiable ES256 JWS", async () => {
     const request = { items: [{ merchantSku: "prd_tire_std", quantity: 1 }] };
     const stored = await createQuote(request, canonicalize(request), `quote-test-${crypto.randomUUID()}`);
-    const result = publicQuote(stored);
-    expect(result.quote).toMatchObject({
+    const quote = publicQuote(stored);
+    expect(quote).toMatchObject({
       merchantId: "mrc_autoparts",
+      merchantCatalogVersion: "autoparts-2026-08-30",
       currency: "USD",
-      subtotalCents: 154_800,
-      totalCents: 170_174,
+      subtotalMinor: 154_800,
+      totalMinor: 170_174,
+      lineItems: [{ merchantCategoryId: "fleet.tires", unitAmountMinor: 154_800 }],
     });
-    expect(result.jws.split(".")).toHaveLength(3);
+    expect(quote.signature.split(".")).toHaveLength(3);
+    expect(quote).not.toHaveProperty("publicJwk");
 
-    const [protectedHeader, payload, signature] = result.jws.split(".");
-    const publicKey = await crypto.subtle.importKey(
-      "jwk",
-      result.publicJwk,
-      { name: "ECDSA", namedCurve: "P-256" },
-      false,
-      ["verify"],
+    const { payload } = await compactVerify(
+      quote.signature,
+      await importJWK(await quoteSigningPublicJwkForTests(), "ES256"),
+      { algorithms: ["ES256"] },
     );
-    const valid = await crypto.subtle.verify(
-      { name: "ECDSA", hash: "SHA-256" },
-      publicKey,
-      Buffer.from(signature, "base64url"),
-      new TextEncoder().encode(`${protectedHeader}.${payload}`),
-    );
-    expect(valid).toBe(true);
-    expect(JSON.parse(Buffer.from(payload, "base64url").toString())).toEqual(result.quote);
+    expect(new TextDecoder().decode(payload)).toBe(canonicalize({
+      id: quote.id,
+      merchantId: quote.merchantId,
+      merchantOrderRef: quote.merchantOrderRef,
+      issuedAt: quote.issuedAt,
+      merchantCatalogVersion: quote.merchantCatalogVersion,
+      lineItems: quote.lineItems,
+      subtotalMinor: quote.subtotalMinor,
+      shippingMinor: quote.shippingMinor,
+      taxMinor: quote.taxMinor,
+      totalMinor: quote.totalMinor,
+      currency: quote.currency,
+      expiresAt: quote.expiresAt,
+      merchantCartHash: quote.merchantCartHash,
+      keyId: quote.keyId,
+    }));
   });
 
   it("returns the same quote for an idempotent retry and refuses payload reuse", async () => {
