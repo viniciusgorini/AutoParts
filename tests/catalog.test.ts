@@ -12,7 +12,7 @@ describe("AutoParts catalog", () => {
   it("searches by name, SKU, category, brand and related terms", () => {
     expect(searchProducts("battery")[0]?.id).toBe("prd_battery_60ah");
     expect(searchProducts("prd_acc_jack")[0]?.id).toBe("prd_acc_jack");
-    expect(searchProducts("brake", "automotive.brakes")[0]?.id).toBe("prd_brake_hd");
+    expect(searchProducts("brake", "fleet.brakes")[0]?.id).toBe("prd_brake_hd");
     expect(searchProducts("Motrix")[0]?.id).toBe("prd_oil_synth");
     expect(searchProducts("2 ton")[0]?.id).toBe("prd_acc_jack");
   });

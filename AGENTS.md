@@ -38,8 +38,9 @@ These instructions apply to every contributor and coding agent working in this r
 - AutoParts operates as a standalone B2B merchant participating in the AgentPay network.
 - Must implement standard decentralized discovery at `GET /.well-known/agentpay.json`.
 - Must sign immutable quotes using ES256 keypairs (`POST /v1/agents-pay/quotes`).
-- Must verify incoming agent requests with RFC 8785 JSON Canonicalization (JCS) before generating quotes.
-- Must verify payment tokens against the Mandate Authority before order fulfillment.
+- Must verify incoming SDK request proofs with ES256, a registered public key, exact URL/body binding, expiry, and atomic replay protection.
+- Must submit only an opaque purchase capability to the Mandate Authority and verify its signed receipt before fulfilment.
+- Must never receive a card reference, Vault token, passkey payload, or a merchant-decided canonical category/trust tier.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

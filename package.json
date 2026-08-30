@@ -13,7 +13,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentpay/merchant-sdk": "file:vendor/agentpay-merchant-sdk-0.1.0.tgz",
+    "@agentic-mandates/contracts": "file:vendor/agentic-mandates-contracts-0.0.0-autoparts.107e534.tgz",
+    "@agentic-mandates/sdk": "file:vendor/agentic-mandates-sdk-0.0.0-autoparts.107e534.tgz",
+    "jose": "6.2.10",
     "lucide-react": "^1.37.0",
     "next": "16.3.3",
     "react": "19.2.8",

@@ -1,33 +1,31 @@
-import { merchantManifest } from "@agentpay/merchant-sdk";
-
 import { agentPayConfig } from "@/lib/env";
 
+/** Public, decentralized discovery. Payment and key material are never published here. */
 export async function GET(request: Request) {
   const config = agentPayConfig();
   const origin = new URL(request.url).origin;
-  const sdkManifest = merchantManifest({
-    origin,
-    merchantId: config.merchantId,
-    merchantName: config.merchantName,
-    checkoutPath: "/api/agentpay/checkout",
-    registryUrl: config.registryUrl,
-  });
   return Response.json(
     {
-      ...sdkManifest,
-      capabilities: ["intent-mandates", "batch-purchasing", "live-revocation", "mock-payment"],
-      quotes_endpoint: new URL("/v1/agents-pay/quotes", origin).toString(),
-      catalog_search_endpoint: new URL("/v1/agents-pay/search", origin).toString(),
-      order_verification_endpoint: new URL("/v1/agents-pay/orders/{merchantOrderRef}/verification", origin).toString(),
+      protocol: "agentic-mandates/2",
+      merchant: { id: config.merchantId, name: config.merchantName },
+      apiBaseUrl: `${origin}/`,
+      endpoints: {
+        search: new URL("/v1/agents-pay/search", origin).toString(),
+        createQuote: new URL("/v1/agents-pay/quotes", origin).toString(),
+        getQuote: `${origin}/v1/agents-pay/quotes/{quoteId}`,
+        verifyOrder: `${origin}/v1/agents-pay/orders/{merchantOrderRef}/verification`,
+      },
+      capabilities: ["signed-quotes", "purchase-capabilities", "live-revocation", "mock-settlement"],
       currency: "USD",
-      supported_categories: [
-        "automotive.tires",
-        "automotive.brakes",
-        "automotive.accessories",
-        "automotive.maintenance",
-        "automotive.electrical",
+      localCategories: [
+        "fleet.tires",
+        "fleet.brakes",
+        "fleet.shop-accessories",
+        "fleet.maintenance",
+        "fleet.electrical",
       ],
-      quote_signing: { algorithm: "ES256", canonicalization: "RFC8785-JCS" },
+      requestProof: { algorithm: "ES256", audience: `merchant-api:${config.merchantId}` },
+      quoteSigning: { algorithm: "ES256", canonicalization: "RFC8785-JCS" },
     },
     {
       headers: {

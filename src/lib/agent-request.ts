@@ -1,70 +1,155 @@
-import { createHash, createPublicKey, verify } from "node:crypto";
+import {
+  AgentRequestProofClaimsSchema,
+  OpaqueIdSchema,
+  type AgentRequestProofClaims,
+} from "@agentic-mandates/contracts";
+import { sha256Base64Url } from "@agentic-mandates/sdk";
+import { decodeProtectedHeader, importJWK, jwtVerify, type JWK } from "jose";
 import { z } from "zod";
 
-import { canonicalize, type JsonValue } from "@/lib/jcs";
+import { agentPayConfig } from "@/lib/env";
 
-const agentSchema = z.object({ id: z.string().min(1), public_key: z.string().min(1) });
+const requestProofType = "application/agentic-mandates-request-proof+jws";
+const maximumProofLifetimeSeconds = 60;
+const textEncoder = new TextEncoder();
+
+const registeredKeySchema = z.object({
+  keyId: OpaqueIdSchema,
+  actor: z.object({ type: z.literal("agent"), id: OpaqueIdSchema }).strict(),
+  status: z.enum(["active", "revoked", "suspended"]),
+  publicJwk: z.object({
+    kty: z.literal("EC"),
+    crv: z.literal("P-256"),
+    x: z.string().min(1),
+    y: z.string().min(1),
+  }).passthrough(),
+}).strict();
 
 export type AgentRequestVerification =
-  | { ok: true; agentId: string; canonicalBody: string }
-  | { ok: false; code: string; message: string; status: number };
+  | { ok: true; agentId: string }
+  | { ok: false; code: string; message: string; status: 401 | 409 | 503 };
 
-function refused(code: string, message: string, status = 401): AgentRequestVerification {
+function refused(
+  code: string,
+  message: string,
+  status: 401 | 409 | 503 = 401,
+): AgentRequestVerification {
   return { ok: false, code, message, status };
 }
 
+/**
+ * Validates an SDK V2 ES256 proof against a Control-Plane registered key and
+ * atomically claims its JTI. The merchant never accepts caller-provided keys
+ * or a browser session at this machine-to-machine boundary.
+ */
 export async function verifyAgentRequest(
   request: Request,
-  body: JsonValue,
-  registryUrl: string,
+  rawBody: string,
   fetcher: typeof fetch = fetch,
   now = new Date(),
 ): Promise<AgentRequestVerification> {
-  const agentId = request.headers.get("x-agent-id");
-  const timestamp = request.headers.get("x-timestamp");
-  const nonce = request.headers.get("x-nonce");
-  const signature = request.headers.get("x-signature");
-  if (!agentId || !timestamp || !nonce || !signature) {
-    return refused("AGENT_SIGNATURE_REQUIRED", "Signed AgentPay request headers are required.");
+  const proof = request.headers.get("x-agent-request-proof")?.trim();
+  if (!proof) {
+    return refused("AGENT_AUTH_REQUIRED", "A signed AgentPay request proof is required.");
   }
 
-  const signedAt = new Date(timestamp);
-  if (!Number.isFinite(signedAt.valueOf()) || Math.abs(now.valueOf() - signedAt.valueOf()) > 60_000) {
-    return refused("AGENT_SIGNATURE_EXPIRED", "The AgentPay request timestamp is outside the allowed window.");
-  }
-
-  let canonicalBody: string;
+  let keyId: string;
   try {
-    canonicalBody = canonicalize(body);
+    const header = decodeProtectedHeader(proof);
+    if (header.alg !== "ES256" || header.typ !== requestProofType || typeof header.kid !== "string") {
+      return refused("AGENT_PROOF_INVALID", "The AgentPay request proof is invalid.");
+    }
+    keyId = OpaqueIdSchema.parse(header.kid);
   } catch {
-    return refused("INVALID_CANONICAL_JSON", "The request cannot be canonicalized with RFC 8785 JCS.", 400);
+    return refused("AGENT_PROOF_INVALID", "The AgentPay request proof is invalid.");
   }
 
+  const config = agentPayConfig();
+  let registeredKey: z.infer<typeof registeredKeySchema>;
   try {
-    const agentResponse = await fetcher(new URL(`/api/registry/agents/${encodeURIComponent(agentId)}`, registryUrl), {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
-    if (!agentResponse.ok) return refused("AGENT_NOT_FOUND", "The signing agent is not active in the registry.");
-    const agent = agentSchema.parse(await agentResponse.json());
-    const bodyHash = createHash("sha256").update(canonicalBody).digest("base64url");
-    const message = [request.method.toUpperCase(), new URL(request.url).pathname, bodyHash, timestamp, nonce].join("|");
-    const signatureValid = verify(
-      null,
-      Buffer.from(message),
-      createPublicKey(agent.public_key),
-      Buffer.from(signature, "base64url"),
+    const response = await fetcher(
+      new URL(`v1/registry/request-proof-keys/${encodeURIComponent(keyId)}`, withTrailingSlash(config.requestProofRegistryUrl)),
+      { headers: { accept: "application/json" }, cache: "no-store" },
     );
-    if (!signatureValid) return refused("AGENT_SIGNATURE_INVALID", "The AgentPay request signature is invalid.");
-
-    const nonceResponse = await fetcher(new URL("/api/registry/nonces", registryUrl), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ agent_id: agentId, nonce, timestamp }),
-    });
-    if (!nonceResponse.ok) return refused("AGENT_REQUEST_REPLAYED", "The AgentPay request nonce was already used.", 409);
-    return { ok: true, agentId, canonicalBody };
+    if (response.status === 404) {
+      return refused("AGENT_PROOF_INVALID", "The AgentPay request proof is invalid.");
+    }
+    if (!response.ok) {
+      return refused("SERVICE_UNAVAILABLE", "The AgentPay request-proof registry is unavailable.", 503);
+    }
+    registeredKey = registeredKeySchema.parse(await response.json());
   } catch {
-    return refused("AGENT_REGISTRY_UNAVAILABLE", "The AgentPay registry could not verify this request.", 503);
+    return refused("SERVICE_UNAVAILABLE", "The AgentPay request-proof registry is unavailable.", 503);
   }
+
+  if (registeredKey.keyId !== keyId || registeredKey.status !== "active") {
+    return refused(
+      registeredKey.status === "revoked" ? "AGENT_KEY_REVOKED" : "AGENT_PROOF_INVALID",
+      "The AgentPay request proof is invalid or its key is not active.",
+    );
+  }
+
+  let claims: AgentRequestProofClaims;
+  try {
+    const verified = await jwtVerify(proof, await importJWK(registeredKey.publicJwk as JWK, "ES256"), {
+      algorithms: ["ES256"],
+      audience: `merchant-api:${config.merchantId}`,
+      issuer: registeredKey.actor.id,
+      subject: registeredKey.actor.id,
+      currentDate: now,
+      maxTokenAge: maximumProofLifetimeSeconds,
+    });
+    const parsed = AgentRequestProofClaimsSchema.safeParse(verified.payload);
+    if (!parsed.success) {
+      return refused("AGENT_PROOF_INVALID", "The AgentPay request proof is invalid.");
+    }
+    claims = parsed.data;
+  } catch {
+    return refused("AGENT_PROOF_INVALID", "The AgentPay request proof is invalid, expired, or untrusted.");
+  }
+
+  const nowSeconds = Math.floor(now.getTime() / 1_000);
+  if (
+    claims.iss !== registeredKey.actor.id
+    || claims.sub !== registeredKey.actor.id
+    || claims.htm !== request.method.toUpperCase()
+    || claims.htu !== request.url
+    || claims.iat > nowSeconds + 5
+    || claims.exp <= nowSeconds
+    || claims.exp - claims.iat > maximumProofLifetimeSeconds
+    || claims.body_hash !== await sha256Base64Url(textEncoder.encode(rawBody))
+  ) {
+    return refused("AGENT_PROOF_INVALID", "The AgentPay request proof is not bound to this request.");
+  }
+
+  try {
+    const response = await fetcher(
+      new URL("v1/registry/request-proofs/claims", withTrailingSlash(config.requestProofRegistryUrl)),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          actorKind: "agent",
+          keyId,
+          proofId: claims.jti,
+          expiresAtUnixSeconds: claims.exp,
+        }),
+        cache: "no-store",
+      },
+    );
+    if (response.status === 409) {
+      return refused("REQUEST_REPLAYED", "This AgentPay request proof was already used.", 409);
+    }
+    if (!response.ok) {
+      return refused("SERVICE_UNAVAILABLE", "The AgentPay replay-protection service is unavailable.", 503);
+    }
+  } catch {
+    return refused("SERVICE_UNAVAILABLE", "The AgentPay replay-protection service is unavailable.", 503);
+  }
+
+  return { ok: true, agentId: registeredKey.actor.id };
+}
+
+function withTrailingSlash(value: string): string {
+  return value.endsWith("/") ? value : `${value}/`;
 }

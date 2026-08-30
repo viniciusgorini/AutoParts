@@ -1,120 +1,127 @@
-import { z } from "zod";
+import { type MerchantVerificationRequest, type VerificationResult } from "@agentic-mandates/contracts";
+import { sha256Base64Url } from "@agentic-mandates/sdk";
 
 import { agentPayConfig } from "@/lib/env";
-import { sha256Base64Url } from "@/lib/jcs";
+import { verifyPurchaseWithMandate } from "@/lib/mandate-client";
 import { getQuote } from "@/lib/quotes";
 
-export type OrderVerificationInput = { quoteId: string; paymentToken: string; mandateId: string };
+export type OrderVerificationInput = { quoteId: string; purchaseCapability: string };
 
-const authorityResponseSchema = z.object({
-  valid: z.literal(true),
-  status: z.enum(["authorized", "captured"]),
-  merchant_id: z.string(),
-  mandate_id: z.string(),
-  quote_id: z.string(),
-  amount_cents: z.number().int().nonnegative(),
-  currency: z.literal("USD"),
-  payment_operation_id: z.string().min(1),
-});
+type MerchantOrderStatus = "fulfilled" | "settlement_pending" | "approval_required" | "rejected";
 
-type FulfilledOrder = {
+type MerchantOrder = {
   merchantOrderRef: string;
   quoteId: string;
-  mandateId: string;
-  tokenHash: string;
-  paymentOperationId: string;
-  status: "fulfilled";
-  invoiceNumber: string;
-  dispatchStatus: "ready_for_dispatch";
+  capabilityHash: string;
+  idempotencyKey: string;
+  status: MerchantOrderStatus;
+  verification: VerificationResult;
+  invoiceNumber?: string;
+  dispatchStatus?: "ready_for_dispatch";
   verifiedAt: string;
 };
 
+type MandateVerifier = (
+  request: MerchantVerificationRequest,
+  options: { idempotencyKey: string; requestId: string },
+) => Promise<VerificationResult>;
+
 const globalOrderState = globalThis as typeof globalThis & {
-  autopartsOrders?: Map<string, FulfilledOrder>;
+  autopartsOrders?: Map<string, MerchantOrder>;
   autopartsOrdersInFlight?: Set<string>;
 };
 
 const orders = globalOrderState.autopartsOrders ??= new Map();
 const ordersInFlight = globalOrderState.autopartsOrdersInFlight ??= new Set();
+const textEncoder = new TextEncoder();
 
-export async function verifyAndFulfillOrder(
+/**
+ * Claims a Mandate-issued capability through the merchant-to-Mandate SDK path.
+ * A card reference, Vault token, passkey, or mandate policy never enters this
+ * store process.
+ */
+export async function verifyAndRecordOrder(
   merchantOrderRef: string,
   input: OrderVerificationInput,
-  fetcher: typeof fetch = fetch,
+  options: { idempotencyKey: string; requestId: string },
+  verifier: MandateVerifier = verifyPurchaseWithMandate,
   now = new Date(),
 ) {
   const quote = getQuote(input.quoteId);
   if (!quote || quote.quote.merchantOrderRef !== merchantOrderRef) throw new Error("QUOTE_NOT_FOUND");
   if (new Date(quote.quote.expiresAt).valueOf() <= now.valueOf()) throw new Error("QUOTE_EXPIRED");
 
-  const tokenHash = await sha256Base64Url(input.paymentToken);
+  const capabilityHash = await sha256Base64Url(textEncoder.encode(input.purchaseCapability));
   const existing = orders.get(merchantOrderRef);
   if (existing) {
-    if (existing.quoteId !== input.quoteId || existing.mandateId !== input.mandateId || existing.tokenHash !== tokenHash) {
-      throw new Error("ORDER_ALREADY_FINALIZED");
+    if (
+      existing.quoteId !== input.quoteId
+      || existing.capabilityHash !== capabilityHash
+      || existing.idempotencyKey !== options.idempotencyKey
+    ) {
+      throw new Error("ORDER_ALREADY_VERIFIED");
     }
     return existing;
   }
-  if (ordersInFlight.has(merchantOrderRef)) throw new Error("ORDER_VERIFICATION_IN_PROGRESS");
+  if (ordersInFlight.has(merchantOrderRef)) throw new Error("VERIFICATION_IN_PROGRESS");
   ordersInFlight.add(merchantOrderRef);
 
   try {
     const config = agentPayConfig();
-    const response = await fetcher(new URL("/api/registry/payment-tokens/verify", config.registryUrl), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        payment_token: input.paymentToken,
-        mandate_id: input.mandateId,
-        quote_id: input.quoteId,
-        merchant_id: config.merchantId,
-        amount_cents: quote.quote.totalCents,
-        currency: quote.quote.currency,
-      }),
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error("PAYMENT_TOKEN_REFUSED");
-    const decision = authorityResponseSchema.parse(await response.json());
-    if (
-      decision.merchant_id !== config.merchantId
-      || decision.mandate_id !== input.mandateId
-      || decision.quote_id !== input.quoteId
-      || decision.amount_cents !== quote.quote.totalCents
-    ) {
-      throw new Error("PAYMENT_TOKEN_BINDING_MISMATCH");
-    }
-    const fulfilled: FulfilledOrder = {
+    const verification = await verifier({
+      merchantId: config.merchantId,
+      merchantOrderRef,
+      quoteId: quote.quote.id,
+      purchaseCapability: input.purchaseCapability,
+    }, options);
+    const fulfilled = verification.decision === "approved" && verification.settlementStatus === "captured";
+    const order: MerchantOrder = {
       merchantOrderRef,
       quoteId: input.quoteId,
-      mandateId: input.mandateId,
-      tokenHash,
-      paymentOperationId: decision.payment_operation_id,
-      status: "fulfilled",
-      invoiceNumber: `INV-${now.getUTCFullYear()}-${merchantOrderRef.slice(-8).toUpperCase()}`,
-      dispatchStatus: "ready_for_dispatch",
+      capabilityHash,
+      idempotencyKey: options.idempotencyKey,
+      status: fulfilled
+        ? "fulfilled"
+        : verification.decision === "approval_required"
+          ? "approval_required"
+          : verification.decision === "rejected" || verification.settlementStatus === "failed"
+            ? "rejected"
+            : "settlement_pending",
+      verification,
+      ...(fulfilled
+        ? {
+            invoiceNumber: `INV-${now.getUTCFullYear()}-${merchantOrderRef.slice(-8).toUpperCase()}`,
+            dispatchStatus: "ready_for_dispatch" as const,
+          }
+        : {}),
       verifiedAt: now.toISOString(),
     };
-    orders.set(merchantOrderRef, fulfilled);
-    return fulfilled;
-  } catch (error) {
-    if (error instanceof Error && ["PAYMENT_TOKEN_REFUSED", "PAYMENT_TOKEN_BINDING_MISMATCH"].includes(error.message)) {
-      throw error;
-    }
-    throw new Error("MANDATE_AUTHORITY_UNAVAILABLE");
+    orders.set(merchantOrderRef, order);
+    return order;
   } finally {
     ordersInFlight.delete(merchantOrderRef);
   }
 }
 
-export function publicOrder(order: FulfilledOrder) {
+export function publicOrder(order: MerchantOrder) {
   return {
     merchantOrderRef: order.merchantOrderRef,
     quoteId: order.quoteId,
-    mandateId: order.mandateId,
-    paymentOperationId: order.paymentOperationId,
     status: order.status,
-    invoiceNumber: order.invoiceNumber,
-    dispatchStatus: order.dispatchStatus,
+    verification: {
+      decision: order.verification.decision,
+      reasonCode: order.verification.reasonCode,
+      verificationId: order.verification.verificationId,
+      mandateStatus: order.verification.mandateStatus,
+      ...(order.verification.paymentOperationId && order.verification.settlementStatus
+        ? {
+            paymentOperationId: order.verification.paymentOperationId,
+            settlementStatus: order.verification.settlementStatus,
+          }
+        : {}),
+    },
+    ...(order.invoiceNumber ? { invoiceNumber: order.invoiceNumber } : {}),
+    ...(order.dispatchStatus ? { dispatchStatus: order.dispatchStatus } : {}),
     verifiedAt: order.verifiedAt,
   };
 }
