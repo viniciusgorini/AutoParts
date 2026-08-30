@@ -20,9 +20,10 @@ Host: autoparts.example.com
     "id": "mrc_autoparts",
     "name": "AutoParts B2B Fleet Supply"
   },
-  "checkout_endpoint": "https://autoparts.example.com/v1/agents-pay/orders/verification",
+  "checkout_endpoint": "https://autoparts.example.com/api/agentpay/checkout",
   "quotes_endpoint": "https://autoparts.example.com/v1/agents-pay/quotes",
   "catalog_search_endpoint": "https://autoparts.example.com/v1/agents-pay/search",
+  "order_verification_endpoint": "https://autoparts.example.com/v1/agents-pay/orders/{merchantOrderRef}/verification",
   "capabilities": [
     "intent-mandates",
     "batch-purchasing",
@@ -34,8 +35,13 @@ Host: autoparts.example.com
     "automotive.tires",
     "automotive.brakes",
     "automotive.accessories",
-    "automotive.maintenance"
-  ]
+    "automotive.maintenance",
+    "automotive.electrical"
+  ],
+  "quote_signing": {
+    "algorithm": "ES256",
+    "canonicalization": "RFC8785-JCS"
+  }
 }
 ```
 
@@ -49,10 +55,14 @@ Agents request signed, immutable price quotes before initiating a purchase with 
 POST /v1/agents-pay/quotes HTTP/1.1
 Content-Type: application/json
 Idempotency-Key: quote-fleet-8921
+X-Agent-Id: agent_fleet_ops
+X-Timestamp: 2026-08-30T02:30:00.000Z
+X-Nonce: 8e16b9f0-1b89-4ecf-8df8-a5f064e5da83
+X-Signature: BASE64URL_SIGNATURE
 
 {
   "items": [
-    { "merchantSku": "prd_tire_std", "quantity": 4 },
+    { "merchantSku": "prd_tire_std", "quantity": 1 },
     { "merchantSku": "prd_brake_hd", "quantity": 2 }
   ],
   "metadata": {
@@ -63,7 +73,7 @@ Idempotency-Key: quote-fleet-8921
 ```
 
 ### Signed JWS Response:
-AutoParts returns an immutable ES256-signed quote containing subtotal, tax, shipping, and expiry timestamp.
+AutoParts canonicalizes the parsed request with RFC 8785 JCS, verifies the agent signature and nonce through the AgentPay registry, and returns an immutable ES256 compact JWS. The quote binds item quantities, integer-cent prices, USD totals, request and cart hashes, and a 15-minute expiry.
 
 ---
 
@@ -74,6 +84,11 @@ When the agent presents a single-use payment token issued by the Mandate Authori
 ```http
 POST /v1/agents-pay/orders/{orderRef}/verification HTTP/1.1
 Content-Type: application/json
+Idempotency-Key: order-fleet-8921
+X-Agent-Id: agent_fleet_ops
+X-Timestamp: 2026-08-30T02:31:00.000Z
+X-Nonce: af4020a4-e4fa-43e7-86f8-6f09df8466f3
+X-Signature: BASE64URL_SIGNATURE
 
 {
   "quoteId": "qte_9821a",
@@ -82,4 +97,6 @@ Content-Type: application/json
 }
 ```
 
-AutoParts verifies the payment token with the Mandate Authority, binds the transaction, logs invoice `# INV-2026-089`, and confirms order dispatch.
+AutoParts first authenticates the agent request. It then verifies the single-use payment token only against the fixed verification path under the configured Mandate Authority origin. Fulfillment occurs only if the returned merchant, mandate, quote, amount, and USD currency all match. The raw token is never stored or returned.
+
+If the Mandate Authority does not provide that endpoint, AutoParts fails closed and leaves the order unfulfilled.
