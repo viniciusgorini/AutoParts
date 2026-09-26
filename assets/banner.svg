@@ -1,139 +1,129 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300" width="1000" height="300">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 300" width="1100" height="300">
   <defs>
-    <filter id="apx-glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="3" result="blur" />
-      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-    </filter>
-    <pattern id="apx-grid" width="34" height="34" patternUnits="userSpaceOnUse">
-      <path d="M 34 0 L 0 0 0 34" fill="none" stroke="#635bff" stroke-opacity="0.06" />
+    <pattern id="apx-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#3b4cc0" stroke-opacity="0.06" />
     </pattern>
-    <clipPath id="apx-cat"><rect x="50" y="136" width="340" height="88" /></clipPath>
+    <marker id="apx-ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0 0 L9 4.5 L0 9 Z" fill="#3b4cc0" />
+    </marker>
   </defs>
 
-  <rect width="1000" height="300" fill="#10141f" />
-  <rect x="14" y="14" width="972" height="272" rx="12" fill="#131a2b" />
-  <rect x="14" y="14" width="972" height="272" rx="12" fill="url(#apx-grid)" />
-  <rect x="14" y="14" width="972" height="272" rx="12" fill="none" stroke="#26304a" stroke-width="1.5" />
+  <rect width="1100" height="300" fill="#f4f6f8" />
+  <rect x="16" y="16" width="1068" height="268" fill="url(#apx-grid)" />
 
-  <!-- brand -->
-  <path d="M64 43 L78.7 51.5 V68.5 L64 77 L49.3 68.5 V51.5 Z" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linejoin="round" />
-  <circle cx="64" cy="60" r="5.5" fill="none" stroke="#f59e0b" stroke-width="1.6" />
-  <text x="92" y="68" font-family="'JetBrains Mono','Fira Code',monospace" font-size="27" font-weight="700" fill="#e9edf6" letter-spacing="3">AUTOPARTS</text>
-  <text x="93" y="89" font-family="'JetBrains Mono','Fira Code',monospace" font-size="12" fill="#8a93ab">b2b fleet supply &#183; agentpay merchant</text>
-
-  <rect x="816" y="48" width="140" height="24" rx="12" fill="none" stroke="#635bff" />
-  <text x="886" y="63" font-family="'JetBrains Mono','Fira Code',monospace" font-size="11" fill="#9d97ff" text-anchor="middle">agentpay/1.0</text>
-
-  <!-- catalog terminal -->
-  <rect x="44" y="112" width="352" height="116" rx="8" fill="#0d1322" stroke="#26304a" />
-  <text x="56" y="130" font-family="'JetBrains Mono','Fira Code',monospace" font-size="10" fill="#5f6b85">$ catalog --fleet --moq</text>
-  <g clip-path="url(#apx-cat)" font-family="'JetBrains Mono','Fira Code',monospace" font-size="10">
-    <g>
-      <animateTransform attributeName="transform" type="translate" values="0 0;0 -102" dur="8s" repeatCount="indefinite" />
-      <g>
-        <text x="56" y="152" fill="#9d97ff">prd_tire_std</text>
-        <text x="140" y="152" fill="#aab3c8">205/55 r16 x4</text>
-        <text x="384" y="152" text-anchor="end" fill="#f59e0b">$1,548</text>
-        <text x="56" y="169" fill="#9d97ff">prd_tire_prm</text>
-        <text x="140" y="169" fill="#aab3c8">perf 205/55 x4</text>
-        <text x="384" y="169" text-anchor="end" fill="#f59e0b">$1,720</text>
-        <text x="56" y="186" fill="#9d97ff">prd_brake_hd</text>
-        <text x="140" y="186" fill="#aab3c8">ceramic pads</text>
-        <text x="384" y="186" text-anchor="end" fill="#f59e0b">$145</text>
-        <text x="56" y="203" fill="#9d97ff">prd_acc_jack</text>
-        <text x="140" y="203" fill="#aab3c8">2t trolley jack</text>
-        <text x="384" y="203" text-anchor="end" fill="#f59e0b">$389</text>
-        <text x="56" y="220" fill="#9d97ff">prd_oil_synth</text>
-        <text x="140" y="220" fill="#aab3c8">5w-30 5qt</text>
-        <text x="384" y="220" text-anchor="end" fill="#f59e0b">$48</text>
-        <text x="56" y="237" fill="#9d97ff">prd_acc_mats</text>
-        <text x="140" y="237" fill="#aab3c8">rubber mats</text>
-        <text x="384" y="237" text-anchor="end" fill="#f59e0b">$129</text>
-      </g>
-      <g transform="translate(0 102)">
-        <text x="56" y="152" fill="#9d97ff">prd_tire_std</text>
-        <text x="140" y="152" fill="#aab3c8">205/55 r16 x4</text>
-        <text x="384" y="152" text-anchor="end" fill="#f59e0b">$1,548</text>
-        <text x="56" y="169" fill="#9d97ff">prd_tire_prm</text>
-        <text x="140" y="169" fill="#aab3c8">perf 205/55 x4</text>
-        <text x="384" y="169" text-anchor="end" fill="#f59e0b">$1,720</text>
-        <text x="56" y="186" fill="#9d97ff">prd_brake_hd</text>
-        <text x="140" y="186" fill="#aab3c8">ceramic pads</text>
-        <text x="384" y="186" text-anchor="end" fill="#f59e0b">$145</text>
-        <text x="56" y="203" fill="#9d97ff">prd_acc_jack</text>
-        <text x="140" y="203" fill="#aab3c8">2t trolley jack</text>
-        <text x="384" y="203" text-anchor="end" fill="#f59e0b">$389</text>
-        <text x="56" y="220" fill="#9d97ff">prd_oil_synth</text>
-        <text x="140" y="220" fill="#aab3c8">5w-30 5qt</text>
-        <text x="384" y="220" text-anchor="end" fill="#f59e0b">$48</text>
-        <text x="56" y="237" fill="#9d97ff">prd_acc_mats</text>
-        <text x="140" y="237" fill="#aab3c8">rubber mats</text>
-        <text x="384" y="237" text-anchor="end" fill="#f59e0b">$129</text>
-      </g>
-    </g>
+  <!-- sheet frame + registration marks -->
+  <rect x="16" y="16" width="1068" height="268" fill="none" stroke="#3b4cc0" stroke-width="1.8" />
+  <rect x="26" y="26" width="1048" height="248" fill="none" stroke="#3b4cc0" stroke-opacity="0.35" stroke-width="1" />
+  <g stroke="#3b4cc0" stroke-width="1.2">
+    <path d="M8 16 H24 M16 8 V24" />
+    <path d="M1076 16 H1092 M1084 8 V24" />
+    <path d="M8 284 H24 M16 276 V292" />
+    <path d="M1076 284 H1092 M1084 276 V292" />
   </g>
 
-  <!-- quote card + ES256 seal -->
-  <rect x="428" y="112" width="262" height="116" rx="8" fill="#0d1322" stroke="#26304a" />
-  <text x="440" y="130" font-family="'JetBrains Mono','Fira Code',monospace" font-size="9.5" fill="#5f6b85">POST /v1/agents-pay/quotes</text>
-  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="9.5" fill="#aab3c8">
-    <text x="440" y="148">{ "merchantSku": "prd_tire_std",</text>
-    <text x="448" y="162">  "quantity": 4 },</text>
-    <text x="440" y="176">{ "merchantSku": "prd_brake_hd",</text>
-    <text x="448" y="190">  "quantity": 2 }</text>
-    <text x="440" y="212" fill="#f59e0b" font-weight="700">&#8594; JWS qte_9821a &#183; immutable</text>
-  </g>
-  <g>
-    <circle cx="672" cy="160" r="16" fill="none" stroke="#f59e0b" stroke-width="1.4">
-      <animate attributeName="r" values="16;30" dur="2.2s" begin="1.3s" repeatCount="indefinite" />
-      <animate attributeName="opacity" values="0.5;0" dur="2.2s" begin="1.3s" repeatCount="indefinite" />
-    </circle>
-    <g transform="translate(672 160)">
-      <g>
-        <animateTransform attributeName="transform" type="scale" values="1.7;1" dur="0.5s" begin="0.8s" fill="freeze" />
-        <animate attributeName="opacity" values="0;1" dur="0.35s" begin="0.8s" fill="freeze" />
-        <circle r="16" fill="#131a2b" stroke="#f59e0b" stroke-width="1.6" />
-        <text y="3" font-family="'JetBrains Mono','Fira Code',monospace" font-size="7.5" font-weight="700" fill="#f59e0b" text-anchor="middle">ES256</text>
-      </g>
-    </g>
+  <!-- title block: logo + name -->
+  <path d="M68 40 L87.1 51 V73 L68 84 L48.9 73 V51 Z" fill="none" stroke="#3b4cc0" stroke-width="2.2" stroke-linejoin="round" />
+  <circle cx="68" cy="62" r="6.5" fill="none" stroke="#3b4cc0" stroke-width="1.8" />
+  <text x="100" y="76" font-family="'JetBrains Mono','Fira Code',monospace" font-size="48" font-weight="700" fill="#1a1f36" letter-spacing="5">AUTOPARTS</text>
+  <text x="102" y="100" font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" fill="#5b6478">b2b fleet supply &#183; agentpay/1.0 merchant protocol</text>
+
+  <!-- sheet annotations -->
+  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" fill="#3b4cc0" text-anchor="end">
+    <text x="1048" y="50">dwg ap-agp-001 &#183; rev b &#183; sheet 1/1</text>
+    <text x="1048" y="68">agentpay/1.0 &#183; rfc 8785 jcs &#183; es256</text>
+    <text x="1048" y="86">scale 1:1 &#183; payment rail: mocked</text>
   </g>
 
-  <!-- mandate / token panel -->
-  <rect x="724" y="112" width="232" height="116" rx="8" fill="#0d1322" stroke="#3a4668" />
-  <text x="736" y="130" font-family="'JetBrains Mono','Fira Code',monospace" font-size="9.5" fill="#5f6b85">mandate authority</text>
-  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="10">
-    <text x="736" y="150" fill="#8a93ab">status</text>
-    <circle cx="800" cy="146" r="3" fill="#34d17b" />
-    <text x="810" y="150" fill="#34d17b">active</text>
-    <text x="736" y="168" fill="#8a93ab">cap</text>
-    <text x="810" y="168" fill="#e9edf6">$2,000 / mo</text>
-    <text x="736" y="186" fill="#8a93ab">scope</text>
-    <text x="810" y="186" fill="#e9edf6">tires brakes</text>
-    <text x="736" y="204" fill="#8a93ab">plate</text>
-    <text x="810" y="204" fill="#e9edf6">FLT-8092</text>
-    <text x="736" y="222" fill="#8a93ab">token</text>
-    <text x="810" y="222" fill="#9d97ff">vt_mock_a89f</text>
+  <!-- dimension line over the pipeline -->
+  <line x1="57" y1="124" x2="1043" y2="124" stroke="#3b4cc0" stroke-width="1" />
+  <line x1="57" y1="118" x2="57" y2="130" stroke="#3b4cc0" stroke-width="1.4" />
+  <line x1="1043" y1="118" x2="1043" y2="130" stroke="#3b4cc0" stroke-width="1.4" />
+  <text x="550" y="117" font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" fill="#3b4cc0" text-anchor="middle" letter-spacing="1">QUOTE &#8594; JCS &#8594; ES256 &#8594; MANDATE VERIFY</text>
+
+  <!-- inter-stage arrows -->
+  <g stroke="#3b4cc0" stroke-width="1.6">
+    <line x1="272" y1="174" x2="311" y2="174" marker-end="url(#apx-ar)" />
+    <line x1="487" y1="174" x2="526" y2="174" marker-end="url(#apx-ar)" />
+    <line x1="702" y1="174" x2="741" y2="174" marker-end="url(#apx-ar)" />
   </g>
 
-  <!-- connectors -->
-  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" fill="#7a74ff" text-anchor="middle">
-    <text x="412" y="175">&#8594;</text>
-    <text x="707" y="175">&#8594;</text>
+  <!-- signal pulse riding the pipeline (visible in the gaps) -->
+  <circle r="3.5" fill="#3b4cc0">
+    <animateMotion dur="4.5s" repeatCount="indefinite" path="M57 174 L1043 174" />
+  </circle>
+
+  <!-- stage 1: quote request -->
+  <rect x="57" y="136" width="215" height="76" rx="3" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13">
+    <text x="73" y="160" font-weight="700" fill="#3b4cc0">post</text>
+    <text x="73" y="180" fill="#1a1f36">/v1/agents-pay/quotes</text>
+    <text x="73" y="200" fill="#5b6478">items + idempotency-key</text>
   </g>
 
-  <!-- pipeline -->
-  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="10.5" text-anchor="middle">
-    <rect x="44" y="246" width="76" height="22" rx="11" fill="#182036" stroke="#2c3a60" />
-    <text x="82" y="261" fill="#aab3c8">01 search</text>
-    <text x="134" y="261" fill="#635bff">&#8594;</text>
-    <rect x="148" y="246" width="112" height="22" rx="11" fill="#182036" stroke="#2c3a60" />
-    <text x="204" y="261" fill="#aab3c8">02 quote &#183; jws</text>
-    <text x="274" y="261" fill="#635bff">&#8594;</text>
-    <rect x="288" y="246" width="124" height="22" rx="11" fill="#182036" stroke="#2c3a60" />
-    <text x="350" y="261" fill="#aab3c8">03 mandate token</text>
-    <text x="426" y="261" fill="#635bff">&#8594;</text>
-    <rect x="440" y="246" width="172" height="22" rx="11" fill="#231c10" stroke="#f59e0b" />
-    <text x="526" y="261" fill="#f59e0b" font-weight="700">04 order &#183; INV-2026-089</text>
-    <text x="950" y="261" text-anchor="end" fill="#5f6b85" font-size="9.5">caps: intent-mandates &#183; batch-purchasing &#183; live-revocation</text>
+  <!-- stage 2: canonicalization -->
+  <rect x="317" y="136" width="170" height="76" rx="3" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13">
+    <text x="333" y="160" font-weight="700" fill="#3b4cc0">rfc 8785</text>
+    <text x="333" y="180" fill="#1a1f36">jcs canonicalize</text>
+    <text x="333" y="200" fill="#5b6478">deterministic</text>
+  </g>
+
+  <!-- stage 3: signature -->
+  <rect x="532" y="136" width="170" height="76" rx="3" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13">
+    <text x="548" y="160" font-weight="700" fill="#3b4cc0">es256 sign</text>
+    <text x="548" y="180" fill="#1a1f36">jws qte_9821a</text>
+    <text x="548" y="200" fill="#5b6478">immutable quote</text>
+  </g>
+  <!-- seal stamp on corner -->
+  <circle cx="702" cy="136" r="13" fill="#f4f6f8" stroke="#e8590c" stroke-width="1.6" />
+  <circle cx="702" cy="136" r="8" fill="none" stroke="#e8590c" stroke-width="1.1" />
+  <circle cx="702" cy="136" r="13" fill="none" stroke="#e8590c" stroke-width="1.4">
+    <animate attributeName="r" values="13;26" dur="2.4s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.55;0" dur="2.4s" repeatCount="indefinite" />
+  </circle>
+
+  <!-- stage 4: mandate verification -->
+  <rect x="747" y="136" width="296" height="76" rx="3" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13">
+    <text x="763" y="158" font-weight="700" fill="#3b4cc0">post /v1/agents-pay</text>
+    <text x="763" y="178" fill="#1a1f36">/orders/{orderRef}/verification</text>
+    <text x="763" y="198" fill="#5b6478">token verify &#8594; <tspan fill="#e8590c" font-weight="700">inv-2026-089</tspan></text>
+  </g>
+
+  <!-- drafting balloons -->
+  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" font-weight="700" fill="#3b4cc0" text-anchor="middle">
+    <circle cx="57" cy="136" r="12" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+    <text x="57" y="140.5">1</text>
+    <circle cx="317" cy="136" r="12" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+    <text x="317" y="140.5">2</text>
+    <circle cx="532" cy="136" r="12" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+    <text x="532" y="140.5">3</text>
+    <circle cx="747" cy="136" r="12" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+    <text x="747" y="140.5">4</text>
+  </g>
+
+  <!-- endpoint notes -->
+  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13">
+    <text x="150" y="248" text-anchor="end" fill="#5b6478">discovery:</text>
+    <text x="162" y="248" fill="#1a1f36">get /.well-known/agentpay.json</text>
+    <text x="150" y="268" text-anchor="end" fill="#5b6478">search:</text>
+    <text x="162" y="268" fill="#1a1f36">post /v1/agents-pay/search</text>
+  </g>
+
+  <!-- tolerance dimension -->
+  <line x1="440" y1="258" x2="740" y2="258" stroke="#3b4cc0" stroke-width="1" />
+  <line x1="440" y1="252" x2="440" y2="264" stroke="#3b4cc0" stroke-width="1.4" />
+  <line x1="740" y1="252" x2="740" y2="264" stroke="#3b4cc0" stroke-width="1.4" />
+  <text x="590" y="250" font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" fill="#3b4cc0" text-anchor="middle">quotes immutable &#183; tokens single-use</text>
+
+  <!-- engineering title block -->
+  <rect x="757" y="234" width="286" height="42" fill="#ffffff" stroke="#3b4cc0" stroke-width="1.5" />
+  <line x1="887" y1="234" x2="887" y2="276" stroke="#3b4cc0" stroke-width="1" />
+  <line x1="957" y1="234" x2="957" y2="276" stroke="#3b4cc0" stroke-width="1" />
+  <g font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" fill="#1a1f36" text-anchor="middle">
+    <text x="822" y="260">dwg ap-agp-001</text>
+    <text x="922" y="260">rev b</text>
+    <text x="1000" y="260">scale 1:1</text>
   </g>
 </svg>
