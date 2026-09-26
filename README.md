@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="#readme"><img src="./assets/banner.svg?v=1" alt="AutoParts: B2B fleet supply merchant on the AgentPay network" width="100%"/></a>
+  <a href="#readme"><img src="./assets/banner.svg?v=2" alt="AutoParts: B2B fleet supply merchant on the AgentPay network" width="100%"/></a>
 </div>
 
 AutoParts is a standalone B2B automotive parts merchant built for autonomous procurement agents on the **AgentPay** network. A fleet agent searches the wholesale catalog, receives an immutable ES256-signed quote, and settles the order against a single-use payment token issued under a mandate. The merchant never asks the agent for money; it verifies that the mandate allows the purchase.
@@ -37,7 +37,7 @@ Wholesale fleet SKUs, priced in USD:
 ### ❯ protocol
 
 <div align="center">
-  <img src="./assets/protocol.svg?v=1" alt="AgentPay merchant protocol: discovery, signed quote, mandate token, order verification" width="100%"/>
+  <img src="./assets/protocol.svg?v=2" alt="AgentPay merchant protocol: discovery, signed quote, mandate token, order verification" width="100%"/>
 </div>
 
 AutoParts implements the open **AgentPay 1.0 merchant protocol**:
